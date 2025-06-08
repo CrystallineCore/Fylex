@@ -1,0 +1,32 @@
+[project]
+name = "fylex"
+version = "0.1.0"
+description = "A smart file copying utility with hashing, filtering, and conflict resolution."
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+  {name = "Sivaprasad Murali", email = "sivaprasad.off@gmail.com"}
+]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent"
+]
+dependencies = [
+  "xxhash>=3.0.0"
+]
+
+[project.urls]
+Homepage = "https://github.com/Crystallinecore/fylex"
+
+[tool.setuptools]
+packages = ["fylex"]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project.scripts]
+fylex = "fylex.__main__:main"
+
