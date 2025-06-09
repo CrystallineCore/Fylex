@@ -118,18 +118,25 @@ def combine_regex_with_glob(user_regex, glob_pattern):
     else:
         return combined_core
 
-# -------- File Copying Task --------
-def _copy_task(file_key, src_path, dest_path, src_name, file_nest, on_conflict, interactive, verbose, dry_run, summary):
+# -------- File Copying/Moving Task --------
+def _task(file_key, src_path, dest_path, src_name, file_nest, on_conflict, interactive, verbose, dry_run, summary, move):
     src_file = src_path / src_name
     dest_file = dest_path / src_name
     retries, proceed = 0, True
 
     if interactive:
-        response = ask_user(f"Copy {src_file} to {dest_file}? [y/N]: ")
+        response = ""
+        if move:
+            response = ask_user(f"Move {src_file} to {dest_file}? [y/N]: ")
+        else:
+            response = ask_user(f"Copy {src_file} to {dest_file}? [y/N]: ")
         proceed = response == "y"
         if not proceed:
             with _io_lock:
-                logging.info(f"Copying of {dest_file} was skipped by user.")
+                if move:
+                    logging.info(f"Moving of {dest_file} was skipped by user.")
+                else:
+                    logging.info(f"Copying of {dest_file} was skipped by user.")
                 return True
 
     while retries < 5 and proceed:
@@ -145,6 +152,8 @@ def _copy_task(file_key, src_path, dest_path, src_name, file_nest, on_conflict, 
                     os.rename(existing_file, dest_file)
                     with _io_lock:
                         logging.info(f"Duplicate renamed: {existing_name} to {src_name}")
+                        if move:
+                            os.remove(src_file)
                     return True
 
             if dest_file.exists():
@@ -235,7 +244,10 @@ def _copy_task(file_key, src_path, dest_path, src_name, file_nest, on_conflict, 
             else:
                 if dry_run:
                     with _io_lock:
-                        logging.info(f"[DRY RUN] Would have copied: {src_file} -> {dest_file}")
+                        if move:
+                            logging.info(f"[DRY RUN] Would have moved: {src_file} -> {dest_file}")
+                        else:
+                            logging.info(f"[DRY RUN] Would have copied: {src_file} -> {dest_file}")
                     return True
                 shutil.copy2(src_file, dest_file)
 
@@ -249,24 +261,34 @@ def _copy_task(file_key, src_path, dest_path, src_name, file_nest, on_conflict, 
                     dest_file.unlink(missing_ok=True)
                     continue
                 with _io_lock:
-                    logging.info(f"Copied and verified: {src_file} -> {dest_file}")
+                    if move:
+                        os.remove(src_file)
+                        logging.info(f"Moved and verified: {src_file} -> {dest_file}")
+                    else:
+                        logging.info(f"Copied and verified: {src_file} -> {dest_file}")
                     return True
             else:
                 with _io_lock:
-                    logging.info(f"[DRY RUN] Would have copied and verified: {src_file} -> {dest_file}")
+                    if move:
+                        logging.info(f"[DRY RUN] Would have moved and verified: {src_file} -> {dest_file}")
+                    else:
+                        logging.info(f"[DRY RUN] Would have copied and verified: {src_file} -> {dest_file}")
                 return True
 
         except Exception as e:
             retries += 1
             if retries >= 5:
-                logging.error(f"Failed to copy {src_file} after retries. Error: {e}")
+                if move:
+                    logging.error(f"Failed to move {src_file} after retries. Error: {e}")
+                else:
+                    logging.error(f"Failed to copy {src_file} after retries. Error: {e}")
                 return False
 
-# -------- Main Smart Copy --------
-def smart_copy(src, dest, no_create=False, interactive=False, dry_run=False, match_regex=None, match_names=None, match_glob=None,
-                exclude_regex=None, exclude_names=None, exclude_glob=None, summary=None,
-               on_conflict=None, max_workers=4, verbose=False):
-    
+
+# -------- Main process --------
+
+def process(src, dest, no_create=False, interactive=False, dry_run=False, match_regex=None, match_names=None, match_glob=None,
+                exclude_regex=None, exclude_names=None, exclude_glob=None, summary=None, on_conflict=None, max_workers=4, verbose=False, move=False):
     match_regex = combine_regex_with_glob(match_regex, match_glob)
     exclude_regex = combine_regex_with_glob(exclude_regex, exclude_glob)
 
@@ -306,12 +328,26 @@ def smart_copy(src, dest, no_create=False, interactive=False, dry_run=False, mat
 
     tasks = []
     for file_key, info in file_birds.items():
-        tasks.append((file_key, src_path, dest_path, info["name"], file_nest, on_conflict, interactive, verbose, dry_run, summary))
+        tasks.append((file_key, src_path, dest_path, info["name"], file_nest, on_conflict, interactive, verbose, dry_run, summary, move))
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = [executor.submit(_copy_task, *task) for task in tasks]
+        futures = [executor.submit(_task, *task) for task in tasks]
         for future in as_completed(futures):
             _ = future.result()
             
     if summary:
         shutil.copy2("fylex.log", summary)
+
+# -------- Main Smart Copy --------
+def smart_copy(src, dest, no_create=False, interactive=False, dry_run=False, match_regex=None, match_names=None, match_glob=None,
+                exclude_regex=None, exclude_names=None, exclude_glob=None, summary=None,
+               on_conflict=None, max_workers=4, verbose=False):
+    process(src, dest, no_create, interactive, dry_run, match_regex, match_names, match_glob,
+                exclude_regex, exclude_names, exclude_glob, summary, on_conflict, max_workers, verbose, move=False)
+    
+# -------- Main Smart Move --------
+def smart_move(src, dest, no_create=False, interactive=False, dry_run=False, match_regex=None, match_names=None, match_glob=None,
+                exclude_regex=None, exclude_names=None, exclude_glob=None, summary=None,
+               on_conflict=None, max_workers=4, verbose=False):
+    process(src, dest, no_create, interactive, dry_run, match_regex, match_names, match_glob,
+                exclude_regex, exclude_names, exclude_glob, summary, on_conflict, max_workers, verbose, move=True)
