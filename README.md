@@ -1,178 +1,151 @@
-# fylex
-
-**Smart, Fast & Customizable File Copier**  
-A Python-based file copying utility with hashing, filtering, multi-threading, and intelligent conflict resolution. Designed for developers, data engineers, and power users.
-
-##
-##  What is `fylex`?
-
-`fylex` is a command-line tool and Python module that simplifies and enhances the task of copying files and directories. Unlike standard copy tools, `fylex` offers powerful filtering options, safe hashing to avoid redundant operations, multi-threaded execution for performance, and customizable conflict handling strategies.
 
 
-##  Features with Examples
+# Fylex
+
+**Smart, Safe & Customizable File Operations Toolkit**
 
 
-### 1. **Hash-Based Copying (xxHash)**
-
-Files are compared using **fast checksums** to avoid copying files that already exist unchanged.
-
-**Example:**
-```bash
-fylex --src ./project --dest ./backup
-````
-
-If files in `project/` already exist in `backup/` with the same content, `fylex` skips them.
+`fylex` is a Python-powered CLI utility and library that enables **high-performance file copying and moving** with content-aware logic, parallel execution, and advanced filtering. Built for developers, sysadmins, and data engineers who need **reliable and configurable file operations** across platforms.
 
 ##
 
-### 2. **File Filtering with Regex and Glob**
+##  Key Highlights
 
-#### 🔹 Include only `.txt` files using glob:
-
-```bash
-fylex --match-glob '*.txt' --src ./src --dest ./dest
-```
-
-#### 🔹 Use regex to copy only files with digits:
-
-```bash
-fylex --match-regex '.*\d+.*\.txt$' --src ./logs --dest ./data
-```
-
-#### 🔹 Exclude by filename list:
-
-```bash
-fylex --exclude-names temp.txt,debug.log --src ./src --dest ./dest
-```
-
-Combine multiple filters to fine-tune your selection.
+*  **Hash-Based File Comparison** — skip identical files using `xxhash`
+*  **Multithreaded Copying** — speed up transfers using `ThreadPoolExecutor`
+*  **Advanced Filtering** — include/exclude via glob, regex, or filenames
+*  **Robust Conflict Handling** — resolve duplicates by size, time, rename, etc.
+*  **Interactive + Dry-Run Modes** — test your actions before committing
+*  **Logging & Summary Files** — track operations with optional logs
+*  **Preserves Metadata** — timestamps and permissions retained
 
 ##
 
-### 3. **Conflict Resolution Modes**
+## Why `fylex`?
 
-Specify what happens if a file with the same name already exists at the destination:
+Most tools either **blindly copy everything** or **require complex scripting** to filter and verify safely. `fylex` offers a smarter alternative:
 
-| Mode    | Description                          |
-| ------- | ------------------------------------ |
-| replace | Overwrite the existing file          |
-| skip    | Skip copying this file               |
-| rename  | Create a new name like `file(1).txt` |
-| newer   | Keep the newest version              |
-| older   | Keep the older version               |
-| larger  | Keep the larger file                 |
-| smaller | Keep the smaller file                |
-| prompt  | Ask the user what to do              |
-
-**Example (rename on conflict):**
-
-```bash
-fylex --on-conflict rename --src ./files --dest ./archive
-```
+| Feature                         | `fylex`      | `cp` / `shutil` | `rsync`      |
+| ------------------------------- | ------------ | --------------- | ------------ |
+| Hash-based comparison           | ✅ (xxhash)   | ❌               | ✅ (md5/weak) |
+| Regex & glob filters            | ✅ Both       | ❌               | ❌            |
+| Multi-threaded operation        | ✅            | ❌               | ❌            |
+| Intelligent conflict resolution | ✅ Rich modes | ❌               | ⚠️ Limited   |
+| Python API support              | ✅            | ❌               | ❌            |
+| Dry-run mode                    | ✅            | ❌               | ✅            |
+| Clean interactive mode          | ✅            | ❌               | ⚠️ Clunky    |
 
 ##
 
-### 4. **Interactive Mode**
+## CLI Usage
 
-Prompts the user before copying each file. Ideal when you need precise control.
+### Syntax
 
 ```bash
-fylex --interactive --src ./important --dest ./external_drive
+fylex copy SRC DEST [options]
+fylex move SRC DEST [options]
 ```
+
+### Options (shared between `copy` and `move`)
+
+| Option                | Description                                                        |
+| --------------------- | ------------------------------------------------------------------ |
+| `--match-glob`        | Include only files matching this glob pattern (`*.txt`, etc.)      |
+| `--match-regex`       | Include files matching this regular expression                     |
+| `--match-names`       | Include only listed filenames (space-separated)                    |
+| `--exclude-glob`      | Exclude files by glob pattern                                      |
+| `--exclude-regex`     | Exclude files by regex                                             |
+| `--exclude-names`     | Exclude specific filenames (space-separated)                       |
+| `--on-conflict`       | Strategy for file name conflicts (`rename`, `newer`, `skip`, etc.) |
+| `--interactive`, `-i` | Prompt before each operation                                       |
+| `--dry-run`           | Simulate actions without copying/moving                            |
+| `--verbose`, `-v`     | Show detailed logs in terminal                                     |
+| `--summary`           | Path to save a summary log file                                    |
+| `--max-workers`       | Number of threads to use (default: 4)                              |
+| `--no-create`         | Do not create destination directories if missing                   |
 
 ##
 
-### 5. **Dry Run Mode**
+### 🔸 Examples
 
-Simulates the entire copy process without actually moving files. Very useful for testing.
+#### Copy Only `.txt` Files, Renaming on Conflict
 
 ```bash
-fylex --dry-run --src ./project --dest ./backup
+fylex copy ./docs ./archive --match-glob '*.txt' --on-conflict rename
 ```
 
-Output will show which files would be copied or skipped, without changing anything.
-
-##
-
-###  6. **Multithreaded Copying**
-
-Use all available CPU cores (or specify how many) to speed up the copying of many files.
+#### Move Files Except `.log` With Prompt, and Let the Larger Prevail
 
 ```bash
-fylex --max-workers 8 --src ./bigdata --dest ./transfer
+fylex move ./input ./output --exclude-glob '*.log' --on-conflict larger --interactive
+```
+
+#### Simulate Full Copy with Detailed Log
+
+```bash
+fylex copy ./dataset ./backup --dry-run --verbose --summary summary.log
 ```
 
 ##
 
-###  7. **(File-Based) Copying with Custom Folder Support**
+## Python API
 
-`fylex` currently operates on **files only** — directories themselves are **not copied recursively** by default.
-
-However, users can easily walk through directories using Python and pass files to `fylex` programmatically.
-
-#### Example: Recursively Copy an Entire Directory Tree
-
-You can combine `fylex.smart_copy()` with Python’s `os.walk()` to copy all files while preserving the directory structure:
+You can use `fylex` programmatically within your Python code for custom workflows:
 
 ```python
-import os
-from fylex import smart_copy
+from fylex import smart_copy, smart_move
 
-src_root = "./mydir"
-dest_root = "./backup"
-
-for root, _, files in os.walk(src_root):
-    for file in files:
-        abs_src_dir = root
-        rel_path = os.path.relpath(root, src_root)
-        dest_dir = os.path.join(dest_root, rel_path)
-
-        smart_copy(
-            src=abs_src_dir,
-            dest=dest_dir,
-            match_names=[file],
-            on_conflict="rename",  # or 'skip', 'prompt', etc.
-            interactive=False,
-            max_workers=4
-        )
+# Example: Copy with custom filters
+smart_copy(
+    src="./input",
+    dest="./output",
+    match_glob="*.csv",
+    exclude_names=["debug.csv"],
+    on_conflict="newer",
+    interactive=False,
+    dry_run=False,
+    max_workers=8,
+    summary="summary.log",
+    verbose=True
+)
 ```
 
-This allows `fylex` to:
-
-* Walk through all nested directories
-* Preserve folder structure
-* Avoid unnecessary copies using hash-based checks
-* Apply your desired conflict strategy
-
-> In future releases, native support for recursive directory copying will be included.
+```python
+# Example: Move and rename if duplicate exists
+smart_move(
+    src="./download",
+    dest="./archive",
+    on_conflict="rename",
+    interactive=False
+)
+```
 
 ##
 
-###  8. **Preserve File Metadata**
+##  Conflict Resolution Modes
 
-`fylex` uses `shutil.copy2()` which retains:
-
-* Access/modification times
-* File permissions (on Unix)
-* File ownership (when permitted)
-
-This is done **automatically** — no flags needed.
+| Mode      | Description                                           |
+| --------- | ----------------------------------------------------- |
+| `replace` | Always overwrite destination                          |
+| `skip`    | Do not copy if destination exists                     |
+| `rename`  | Auto-rename to avoid overwriting (e.g. `file(1).txt`) |
+| `prompt`  | Ask user what to do for each conflict                 |
+| `newer`   | Keep the most recently modified file                  |
+| `older`   | Keep the oldest version                               |
+| `larger`  | Keep the larger file                                  |
+| `smaller` | Keep the smaller file                                 |
 
 ##
 
-###  9. **Logging and Summary Files**
+##  Dry Run & Logging
 
-Enable verbose logging to console, and optionally save logs to a file.
+* `--dry-run`: shows what would happen without touching the disk
+* `--verbose`: detailed log of every matched and skipped file
+* `--summary`: logs all decisions and actions to a file
 
-```bash
-fylex --verbose --summary logs/summary.log --src ./src --dest ./dest
-```
+##
 
-This generates a human-readable log with all actions taken by `fylex`.
-
----
-
-## Installation
+##  Installation
 
 Install via PyPI:
 
@@ -190,35 +163,10 @@ pip install .
 
 ##
 
-##  Full Command Reference
-
-```bash
-fylex [OPTIONS]
-```
-
-| Option                                                 | Description                                 |
-| ------------------------------------------------------ | ------------------------------------------- |
-| `--src`                                                | Source directory or file                    |
-| `--dest`                                               | Destination directory                       |
-| `--match-regex`                                        | Regex pattern to include                    |
-| `--match-glob`                                         | Glob pattern to include                     |
-| `--match-names`                                        | Comma-separated filenames to include        |
-| `--exclude-regex`, `--exclude-glob`, `--exclude-names` | Filters to exclude files                    |
-| `--on-conflict`                                        | Conflict strategy (`replace`, `skip`, etc.) |
-| `--interactive`                                        | Ask user before copying each file           |
-| `--dry-run`                                            | Simulate without copying                    |
-| `--max-workers`                                        | Number of threads to use                    |
-| `--summary`                                            | Output log file                             |
-| `--verbose`                                            | Show log messages in terminal               |
-
-##
-
 ##  Dependencies
 
 * Python 3.8+
-* `xxhash` (for ultra-fast hashing)
-
-Install with:
+* `xxhash`: For high-speed hashing
 
 ```bash
 pip install xxhash
@@ -226,41 +174,22 @@ pip install xxhash
 
 ##
 
-##  License
+## License
 
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for full terms.
+MIT License © Sivaprasad Murali — https://github.com/Crystallinecore/fylex
 
-> xxhash is used under BSD License. Visit [https://github.com/Cyan4973/xxHash](https://github.com/Cyan4973/xxHash) for details.
-
-##
-
-## Author
-
-**Sivaprasad Murali:**
- [sivaprasad.off@gmail.com](mailto:sivaprasad.off@gmail.com)
+xxHash used under BSD License — [https://github.com/Cyan4973/xxHash](https://github.com/Cyan4973/xxHash)
 
 ##
 
-##  Why fylex Might Be the Best in Market
-✔ Combines glob, regex, and name filtering — most tools support only one.
+##  Author
 
-✔ Detects duplicates based on content hashing, not metadata.
-
-✔ Re-hashes and verifies the copies to ensure data integrity.
-
-✔ Conflict resolution goes **beyond overwrite/skip** — with logic-based decisions.
-
-✔ No platform lock-in — works on **Linux**, **Windows**, and **macOS**.
-
-✔ Clean API structure for future expansion (GUI, networking, etc.)
-
-✔ Practical logging and dry-run mode — rarely seen in open-source file tools.
-
-✔ Performance boost via parallel threads and fast hashing.
+**Sivaprasad Murali** —
+[sivaprasad.off@gmail.com](mailto:sivaprasad.off@gmail.com)
 
 
 ##
-
-"Don’t just copy. fylex it."
-
+>  *“Your files. Your rules. Just smarter.”*
 ##
+
+
