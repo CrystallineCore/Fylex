@@ -1,6 +1,6 @@
 [project]
 name = "fylex"
-version = "0.1.0"
+version = "0.1.2"
 description = "A smart file copying utility with hashing, filtering, and conflict resolution."
 readme = "README.md"
 requires-python = ">=3.8"
