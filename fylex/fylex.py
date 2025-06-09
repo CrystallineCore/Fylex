@@ -48,6 +48,9 @@ def ask_user(question):
 def validator(src, dest, no_create):
     src_path = pathlib.Path(src)
     dest_path = pathlib.Path(dest)
+    abs_src_path = pathlib.Path(src_path).resolve(strict=False)
+    if abs_src_path == pathlib.Path(dest_path).resolve(strict=False):
+        raise ValueError(f"Source and destination are the same file: {abs_src_path}")
     if not src_path.exists():
         raise InvalidPathError(str(src_path))
     if not dest_path.exists():
