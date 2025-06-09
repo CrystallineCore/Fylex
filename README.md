@@ -1,21 +1,16 @@
-
-
 # fylex
 
-**Smart, Fast & Customizable File Copier**
+**Smart, Fast & Customizable File Copier**  
 A Python-based file copying utility with hashing, filtering, multi-threading, and intelligent conflict resolution. Designed for developers, data engineers, and power users.
 
----
-
+##
 ##  What is `fylex`?
 
 `fylex` is a command-line tool and Python module that simplifies and enhances the task of copying files and directories. Unlike standard copy tools, `fylex` offers powerful filtering options, safe hashing to avoid redundant operations, multi-threaded execution for performance, and customizable conflict handling strategies.
 
----
 
 ##  Features with Examples
 
----
 
 ### 1. **Hash-Based Copying (xxHash)**
 
@@ -28,7 +23,7 @@ fylex --src ./project --dest ./backup
 
 If files in `project/` already exist in `backup/` with the same content, `fylex` skips them.
 
----
+##
 
 ### 2. **File Filtering with Regex and Glob**
 
@@ -52,7 +47,7 @@ fylex --exclude-names temp.txt,debug.log --src ./src --dest ./dest
 
 Combine multiple filters to fine-tune your selection.
 
----
+##
 
 ### 3. **Conflict Resolution Modes**
 
@@ -75,7 +70,7 @@ Specify what happens if a file with the same name already exists at the destinat
 fylex --on-conflict rename --src ./files --dest ./archive
 ```
 
----
+##
 
 ### 4. **Interactive Mode**
 
@@ -85,7 +80,7 @@ Prompts the user before copying each file. Ideal when you need precise control.
 fylex --interactive --src ./important --dest ./external_drive
 ```
 
----
+##
 
 ### 5. **Dry Run Mode**
 
@@ -97,7 +92,7 @@ fylex --dry-run --src ./project --dest ./backup
 
 Output will show which files would be copied or skipped, without changing anything.
 
----
+##
 
 ###  6. **Multithreaded Copying**
 
@@ -107,7 +102,7 @@ Use all available CPU cores (or specify how many) to speed up the copying of man
 fylex --max-workers 8 --src ./bigdata --dest ./transfer
 ```
 
----
+##
 
 ###  7. **(File-Based) Copying with Custom Folder Support**
 
@@ -151,7 +146,7 @@ This allows `fylex` to:
 
 > In future releases, native support for recursive directory copying will be included.
 
----
+##
 
 ###  8. **Preserve File Metadata**
 
@@ -163,7 +158,7 @@ This allows `fylex` to:
 
 This is done **automatically** — no flags needed.
 
----
+##
 
 ###  9. **Logging and Summary Files**
 
@@ -193,7 +188,7 @@ cd fylex
 pip install .
 ```
 
----
+##
 
 ##  Full Command Reference
 
@@ -216,7 +211,7 @@ fylex [OPTIONS]
 | `--summary`                                            | Output log file                             |
 | `--verbose`                                            | Show log messages in terminal               |
 
----
+##
 
 ##  Dependencies
 
@@ -229,7 +224,7 @@ Install with:
 pip install xxhash
 ```
 
----
+##
 
 ##  License
 
@@ -237,14 +232,14 @@ This project is licensed under the MIT License. See [LICENSE](LICENSE) for full 
 
 > xxhash is used under BSD License. Visit [https://github.com/Cyan4973/xxHash](https://github.com/Cyan4973/xxHash) for details.
 
----
+##
 
 ## Author
 
 **Sivaprasad Murali:**
  [sivaprasad.off@gmail.com](mailto:sivaprasad.off@gmail.com)
 
----
+##
 
 ##  Why fylex Might Be the Best in Market
 ✔ Combines glob, regex, and name filtering — most tools support only one.
@@ -264,8 +259,8 @@ This project is licensed under the MIT License. See [LICENSE](LICENSE) for full 
 ✔ Performance boost via parallel threads and fast hashing.
 
 
----
+##
 
-> "Don’t just copy. fylex it."
+"Don’t just copy. fylex it."
 
----
+##
