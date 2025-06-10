@@ -1,6 +1,6 @@
 import argparse
 import sys
-from .fylex import smart_copy, smart_move
+from .fylex import copy_files, move_files, JUNK_EXTENSIONS
 from .exceptions import FylexError
 
 def parse_args():
@@ -12,7 +12,7 @@ def parse_args():
     subparsers = parser.add_subparsers(dest="command", required=True, help="Available commands")
 
     # ---------------- Copy Subcommand ----------------
-    copy_parser = subparsers.add_parser("copy", help="Smartly copy files using hashing and filters")
+    copy_parser = subparsers.add_parser("copy_files", help="Smartly copy files using hashing and filters")
 
     copy_parser.add_argument("src", help="Source directory or file")
     copy_parser.add_argument("dest", help="Destination directory")
@@ -30,9 +30,10 @@ def parse_args():
                              help="Action on filename conflict")
     copy_parser.add_argument("--summary", default=None, help="Summary log path")
     copy_parser.add_argument("--max-workers", type=int, default=4, help="Number of threads to use")
+    copy_parser.add_argument("--has-extension", type=bool, default=False, help="Whether these files have extensions")
 
     # ---------------- Move Subcommand ----------------
-    move_parser = subparsers.add_parser("move", help="Smartly move files using hashing and filters")
+    move_parser = subparsers.add_parser("move_files", help="Smartly move files using hashing and filters")
 
     move_parser.add_argument("src", help="Source directory or file")
     move_parser.add_argument("dest", help="Destination directory")
@@ -50,9 +51,10 @@ def parse_args():
                              help="Action on filename conflict")
     move_parser.add_argument("--summary", default=None, help="Summary log path")
     move_parser.add_argument("--max-workers", type=int, default=4, help="Number of threads to use")
+    copy_parser.add_argument("--has-extension", type=bool, default=False, help="Whether these files have extensions")
 
     # ---------------- Refine Subcommand ----------------
-    refine_parser = subparsers.add_parser("refine", help="Refine a directory")
+    refine_parser = subparsers.add_parser("refinefiles", help="Refine a directory")
 
     refine_parser.add_argument("target", help="Target directory to refine")
     refine_parser.add_argument("--strategy", choices=["dedup", "clean", "sort"], default="dedup", help="Refinement strategy")
@@ -64,11 +66,11 @@ def main():
     args = parse_args()
 
     try:
-        if args.command == "copy":
+        if args.command == "copyfiles":
             if args.dry_run and args.interactive:
                 raise ValueError("Cannot use --dry-run with --interactive mode.")
 
-            smart_copy(
+            copy_files(
                 src=args.src,
                 dest=args.dest,
                 interactive=args.interactive,
@@ -83,14 +85,15 @@ def main():
                 on_conflict=args.on_conflict,
                 summary=args.summary,
                 max_workers=args.max_workers,
-                verbose=args.verbose
+                verbose=args.verbose,
+                has_extension=args.has_extension
             )
         
-        elif args.command == "move":
+        elif args.command == "movefiles":
             if args.dry_run and args.interactive:
                 raise ValueError("Cannot use --dry-run with --interactive mode.")
 
-            smart_move(
+            move_files(
                 src=args.src,
                 dest=args.dest,
                 interactive=args.interactive,
@@ -106,6 +109,7 @@ def main():
                 summary=args.summary,
                 max_workers=args.max_workers,
                 verbose=args.verbose
+                has_extension=args.has_extension
             )
 
     except FylexError as e:

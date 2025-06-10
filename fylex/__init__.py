@@ -1,5 +1,5 @@
-from .fylex import smart_copy, smart_move
+from .fylex import copy_files, move_files, JUNK_EXTENSIONS
 from .exceptions import *
 
-__version__ = "1.1.2"
-__all__ = ["smart_copy", "smart_move", "FylexError", "InvalidPathError", "CopyFailedError"]
+__version__ = "0.3.0"
+__all__ = ["copy_files", "move_files", "JUNK_EXTENSIONS", "FylexError", "InvalidPathError", "CopyFailedError"]

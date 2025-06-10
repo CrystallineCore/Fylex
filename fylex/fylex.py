@@ -12,6 +12,39 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from .exceptions import InvalidPathError, PermissionDeniedError
 
 _io_lock = threading.Lock()
+JUNK_EXTENSIONS = {
+    "temporary_backup": [
+        ".tmp", ".temp", ".bak", ".backup", ".bkp", ".old", ".orig", ".save", "~"
+    ],
+    "system_log": [
+        ".log", ".dmp", ".mdmp", ".hdmp", ".ds_store", ".lnk", "thumbs.db",
+        "desktop.ini"
+    ],
+    "dev_artifacts": [
+        ".class", ".o", ".obj", ".pyc", ".pyo", ".pyd", ".elc",
+        ".egg", ".egg-info", ".whl", ".map", ".coverage", ".gcda", ".gcno",
+        ".aux", ".out", ".toc", ".synctex.gz"
+    ],
+    "platform_trash": [
+        ".Trash", ".Trashes", ".Spotlight-V100", ".AppleDouble", ".fseventsd",
+        ".apdisk", "ehthumbs.db", ".TemporaryItems", ".DocumentRevisions-V100"
+    ],
+    "browser_cache": [
+        ".cache", ".cached", ".part", ".crdownload", ".download"
+    ],
+    "editor_ide_junk": [
+        ".suo", ".user", ".ncb", ".sdf", ".dbmdl", ".project", ".classpath",
+        ".sublime-workspace", ".idea", ".vscode"
+    ],
+    "ci_cd_test": [
+        ".test", ".tmp", ".out", ".stackdump"
+    ],
+    "document_temp": [
+        ".wbk", ".asd", ".tmp", ".~lock"
+    ]
+}
+
+
 
 # -------- Logger Setup --------
 class PrintToLogger:
@@ -62,8 +95,8 @@ def validator(src, dest, no_create):
             raise PermissionDeniedError(str(dest_path), "write")
 
 # -------- Metadata Gathering --------
-def file_size_and_time(directory, match_regex=None, match_names=None, exclude_regex=None, exclude_names=None):
-    file_data = {}
+def file_size_and_time(directory, match_regex=None, match_names=None, exclude_regex=None, exclude_names=None, has_extension=False, is_nest=False, nest_filter=None):
+    file_data, _filter = {}, set()
     match_re = re.compile(match_regex) if match_regex else None
     exclude_re = re.compile(exclude_regex) if exclude_regex else None
     dir_path = pathlib.Path(directory)
@@ -78,16 +111,26 @@ def file_size_and_time(directory, match_regex=None, match_names=None, exclude_re
             continue
         if not ((match_re and match_re.fullmatch(name)) or (match_names and name in match_names)):
             continue
+        file_size = entry.stat().st_size       
+        file_suffix = entry.suffix.lower()
+        if is_nest:
+            if has_extension:
+                if (file_size,file_suffix) not in nest_filter:
+                    continue
+            else:
+                if file_size not in nest_filter:
+                    continue
+            
         file_hash = hash_file(entry)
-        file_size = entry.stat().st_size
         file_data[(file_hash, file_size)] = {"name": name}
-
-    return file_data
+        if not is_nest:
+            if has_extension:
+                _filter.add((file_size,file_suffix))
+            else:
+                _filter.add(file_size)
+    return (file_data, _filter) if not is_nest else file_data
     
 # -------- Regex compilation --------
-import fnmatch
-import re
-
 def sanitize_glob_regex(glob_pattern):
     glob_re = fnmatch.translate(glob_pattern)
     if glob_re.startswith("(?s:") and glob_re.endswith(")\\Z"):
@@ -149,12 +192,19 @@ def _task(file_key, src_path, dest_path, src_name, file_nest, on_conflict, inter
                         logging.info(f"[DRY RUN] Duplicate would have been renamed: {existing_name} to {src_name}")
                     return True  
                 else:
-                    os.rename(existing_file, dest_file)
-                    with _io_lock:
-                        logging.info(f"Duplicate renamed: {existing_name} to {src_name}")
-                        if move:
-                            os.remove(src_file)
-                    return True
+                    if ( existing_name != src_name ):
+                        os.rename(existing_file, dest_file)
+                        with _io_lock:
+                            logging.info(f"Duplicate renamed: {existing_name} to {src_name}")
+                            if move:
+                                os.remove(src_file)
+                        return True
+                    else:
+                        with _io_lock:
+                            logging.info(f"File already present : {existing_name}")
+                            if move:
+                                os.remove(src_file)
+                        return True
 
             if dest_file.exists():
                 # Conflict handling
@@ -285,10 +335,10 @@ def _task(file_key, src_path, dest_path, src_name, file_nest, on_conflict, inter
                 return False
 
 
-# -------- Main process --------
+# -------- Main fileprocess --------
 
-def process(src, dest, no_create=False, interactive=False, dry_run=False, match_regex=None, match_names=None, match_glob=None,
-                exclude_regex=None, exclude_names=None, exclude_glob=None, summary=None, on_conflict=None, max_workers=4, verbose=False, move=False):
+def fileprocess(src, dest, no_create=False, interactive=False, dry_run=False, match_regex=None, match_names=None, match_glob=None,
+                exclude_regex=None, exclude_names=None, exclude_glob=None, summary=None, on_conflict=None, max_workers=4, verbose=False, has_extension=False, move=False):
     match_regex = combine_regex_with_glob(match_regex, match_glob)
     exclude_regex = combine_regex_with_glob(exclude_regex, exclude_glob)
 
@@ -309,8 +359,6 @@ def process(src, dest, no_create=False, interactive=False, dry_run=False, match_
     
     # Override print only for this run, and respect verbose flag
     sys.stdout = PrintToLogger(verbose)
-    
-    validator(src, dest, no_create)
 
     src_path = pathlib.Path(src)
     dest_path = pathlib.Path(dest)
@@ -322,10 +370,12 @@ def process(src, dest, no_create=False, interactive=False, dry_run=False, match_
         match_names = [src_path.name]
         src_path = src_path.parent
         match_regex = None
+        
+    validator(src, dest, no_create)
 
-    file_birds = file_size_and_time(src_path, match_regex, match_names, exclude_regex, exclude_names)
-    file_nest = file_size_and_time(dest_path, ".+", [], None, [])
-
+    file_birds, nest_filter = file_size_and_time(src_path, match_regex, match_names, exclude_regex, exclude_names, has_extension, False, None)
+    file_nest = file_size_and_time(dest_path, ".+", [], None, [], has_extension, True, nest_filter)
+    #print(f"******{file_birds}******{file_nest}*******{_filter}")
     tasks = []
     for file_key, info in file_birds.items():
         tasks.append((file_key, src_path, dest_path, info["name"], file_nest, on_conflict, interactive, verbose, dry_run, summary, move))
@@ -339,15 +389,15 @@ def process(src, dest, no_create=False, interactive=False, dry_run=False, match_
         shutil.copy2("fylex.log", summary)
 
 # -------- Main Smart Copy --------
-def smart_copy(src, dest, no_create=False, interactive=False, dry_run=False, match_regex=None, match_names=None, match_glob=None,
+def copy_files(src, dest, no_create=False, interactive=False, dry_run=False, match_regex=None, match_names=None, match_glob=None,
                 exclude_regex=None, exclude_names=None, exclude_glob=None, summary=None,
-               on_conflict=None, max_workers=4, verbose=False):
-    process(src, dest, no_create, interactive, dry_run, match_regex, match_names, match_glob,
-                exclude_regex, exclude_names, exclude_glob, summary, on_conflict, max_workers, verbose, move=False)
+               on_conflict=None, max_workers=4, verbose=False, has_extension=False):
+    fileprocess(src, dest, no_create, interactive, dry_run, match_regex, match_names, match_glob,
+                exclude_regex, exclude_names, exclude_glob, summary, on_conflict, max_workers, verbose, has_extension, move=False)
     
 # -------- Main Smart Move --------
-def smart_move(src, dest, no_create=False, interactive=False, dry_run=False, match_regex=None, match_names=None, match_glob=None,
+def move_files(src, dest, no_create=False, interactive=False, dry_run=False, match_regex=None, match_names=None, match_glob=None,
                 exclude_regex=None, exclude_names=None, exclude_glob=None, summary=None,
-               on_conflict=None, max_workers=4, verbose=False):
-    process(src, dest, no_create, interactive, dry_run, match_regex, match_names, match_glob,
-                exclude_regex, exclude_names, exclude_glob, summary, on_conflict, max_workers, verbose, move=True)
+               on_conflict=None, max_workers=4, verbose=False, has_extension=False):
+    fileprocess(src, dest, no_create, interactive, dry_run, match_regex, match_names, match_glob,
+                exclude_regex, exclude_names, exclude_glob, summary, on_conflict, max_workers, verbose, has_extension, move=True)
