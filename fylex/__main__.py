@@ -30,6 +30,7 @@ def parse_args():
                              help="Action on filename conflict")
     copy_parser.add_argument("--summary", default=None, help="Summary log path")
     copy_parser.add_argument("--max-workers", type=int, default=4, help="Number of threads to use")
+    copy_parser.add_argument("--recursive-check", type=bool, default=False, help="Whether to check directories recursively for file existence")
     copy_parser.add_argument("--has-extension", type=bool, default=False, help="Whether these files have extensions")
 
     # ---------------- Move Subcommand ----------------
@@ -51,10 +52,11 @@ def parse_args():
                              help="Action on filename conflict")
     move_parser.add_argument("--summary", default=None, help="Summary log path")
     move_parser.add_argument("--max-workers", type=int, default=4, help="Number of threads to use")
-    copy_parser.add_argument("--has-extension", type=bool, default=False, help="Whether these files have extensions")
+    move_parser.add_argument("--recursive-check", type=bool, default=False, help="Whether to check directories recursively for file existence")
+    move_parser.add_argument("--has-extension", type=bool, default=False, help="Whether these files have extensions")
 
     # ---------------- Refine Subcommand ----------------
-    refine_parser = subparsers.add_parser("refinefiles", help="Refine a directory")
+    refine_parser = subparsers.add_parser("refine_files", help="Refine a directory")
 
     refine_parser.add_argument("target", help="Target directory to refine")
     refine_parser.add_argument("--strategy", choices=["dedup", "clean", "sort"], default="dedup", help="Refinement strategy")
@@ -86,6 +88,7 @@ def main():
                 summary=args.summary,
                 max_workers=args.max_workers,
                 verbose=args.verbose,
+                recursive_check=args.recursive_check,
                 has_extension=args.has_extension
             )
         
@@ -109,6 +112,7 @@ def main():
                 summary=args.summary,
                 max_workers=args.max_workers,
                 verbose=args.verbose
+                recursive_check=args.recursive_check,
                 has_extension=args.has_extension
             )
 

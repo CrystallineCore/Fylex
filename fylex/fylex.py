@@ -1,3 +1,4 @@
+#change order of params
 import os
 import re
 import sys
@@ -78,7 +79,16 @@ def ask_user(question):
         return input().strip().lower()
 
 # -------- Validators --------
-def validator(src, dest, no_create):
+def is_subpath(src: pathlib.Path, dest: pathlib.Path) -> bool:
+    try:
+        src = pathlib.Path(src).resolve()
+        dest = pathlib.Path(dest).resolve()
+        src.relative_to(dest)
+        return src != dest
+    except ValueError:
+        return False
+
+def validator(src, dest, no_create, recursive_check):
     src_path = pathlib.Path(src)
     dest_path = pathlib.Path(dest)
     abs_src_path = pathlib.Path(src_path).resolve(strict=False)
@@ -93,15 +103,17 @@ def validator(src, dest, no_create):
             dest_path.mkdir(parents=True, exist_ok=True)
         except PermissionError:
             raise PermissionDeniedError(str(dest_path), "write")
-
+    if recursive_check and is_subpath(src, dest):
+        raise ValueError("Cannot enable recursive_check when src is inside dest — this can cause unintended behavior.")
+        
 # -------- Metadata Gathering --------
-def file_size_and_time(directory, match_regex=None, match_names=None, exclude_regex=None, exclude_names=None, has_extension=False, is_nest=False, nest_filter=None):
+def file_size_and_time(directory, match_regex=None, match_names=None, exclude_regex=None, exclude_names=None, recursive_check=False, has_extension=False, is_nest=False, nest_filter=None):
     file_data, _filter = {}, set()
     match_re = re.compile(match_regex) if match_regex else None
     exclude_re = re.compile(exclude_regex) if exclude_regex else None
     dir_path = pathlib.Path(directory)
-
-    for entry in dir_path.iterdir():
+    entries = pathlib.Path(dir_path).rglob("*") if (recursive_check and is_nest) else dir_path.iterdir()
+    for entry in entries:
         if entry.is_dir():
             continue
         name = entry.name
@@ -122,7 +134,7 @@ def file_size_and_time(directory, match_regex=None, match_names=None, exclude_re
                     continue
             
         file_hash = hash_file(entry)
-        file_data[(file_hash, file_size)] = {"name": name}
+        file_data[(file_hash, file_size)] = {"name": name, "path":entry.resolve()}
         if not is_nest:
             if has_extension:
                 _filter.add((file_size,file_suffix))
@@ -201,7 +213,7 @@ def _task(file_key, src_path, dest_path, src_name, file_nest, on_conflict, inter
                         return True
                     else:
                         with _io_lock:
-                            logging.info(f"File already present : {existing_name}")
+                            logging.info(f"File already present: {file_nest[file_key]['path']}")
                             if move:
                                 os.remove(src_file)
                         return True
@@ -329,16 +341,17 @@ def _task(file_key, src_path, dest_path, src_name, file_nest, on_conflict, inter
             retries += 1
             if retries >= 5:
                 if move:
-                    logging.error(f"Failed to move {src_file} after retries. Error: {e}")
+                    logging.error(f"Failed to move {src_file} after retries. \nError: {e}")
                 else:
-                    logging.error(f"Failed to copy {src_file} after retries. Error: {e}")
+                    logging.error(f"Failed to copy {src_file} after retries. \nError: {e}")
                 return False
 
 
 # -------- Main fileprocess --------
 
 def fileprocess(src, dest, no_create=False, interactive=False, dry_run=False, match_regex=None, match_names=None, match_glob=None,
-                exclude_regex=None, exclude_names=None, exclude_glob=None, summary=None, on_conflict=None, max_workers=4, verbose=False, has_extension=False, move=False):
+                exclude_regex=None, exclude_names=None, exclude_glob=None, summary=None, on_conflict=None, 
+                max_workers=4, verbose=False, recursive_check=False, has_extension=False, move=False):
     match_regex = combine_regex_with_glob(match_regex, match_glob)
     exclude_regex = combine_regex_with_glob(exclude_regex, exclude_glob)
 
@@ -371,11 +384,14 @@ def fileprocess(src, dest, no_create=False, interactive=False, dry_run=False, ma
         src_path = src_path.parent
         match_regex = None
         
-    validator(src, dest, no_create)
+    validator(src, dest, no_create, recursive_check)
 
-    file_birds, nest_filter = file_size_and_time(src_path, match_regex, match_names, exclude_regex, exclude_names, has_extension, False, None)
-    file_nest = file_size_and_time(dest_path, ".+", [], None, [], has_extension, True, nest_filter)
-    #print(f"******{file_birds}******{file_nest}*******{_filter}")
+    file_birds, nest_filter = file_size_and_time(src_path, match_regex, match_names, exclude_regex, exclude_names, recursive_check, has_extension, False, None)
+    file_nest = file_size_and_time(dest_path, ".+", [], None, [], recursive_check, has_extension, True, nest_filter)
+    logging.info(f"Collected {len(file_birds)} source file(s)")
+    logging.info(f"Nested filter has {len(nest_filter)} entries: {nest_filter}")
+    logging.info(f"Matched {len(file_nest)} file(s) at destination")
+
     tasks = []
     for file_key, info in file_birds.items():
         tasks.append((file_key, src_path, dest_path, info["name"], file_nest, on_conflict, interactive, verbose, dry_run, summary, move))
@@ -391,13 +407,13 @@ def fileprocess(src, dest, no_create=False, interactive=False, dry_run=False, ma
 # -------- Main Smart Copy --------
 def copy_files(src, dest, no_create=False, interactive=False, dry_run=False, match_regex=None, match_names=None, match_glob=None,
                 exclude_regex=None, exclude_names=None, exclude_glob=None, summary=None,
-               on_conflict=None, max_workers=4, verbose=False, has_extension=False):
+               on_conflict=None, max_workers=4, verbose=False, recursive_check=False, has_extension=False):
     fileprocess(src, dest, no_create, interactive, dry_run, match_regex, match_names, match_glob,
-                exclude_regex, exclude_names, exclude_glob, summary, on_conflict, max_workers, verbose, has_extension, move=False)
+                exclude_regex, exclude_names, exclude_glob, summary, on_conflict, max_workers, verbose, recursive_check, has_extension, move=False)
     
 # -------- Main Smart Move --------
 def move_files(src, dest, no_create=False, interactive=False, dry_run=False, match_regex=None, match_names=None, match_glob=None,
                 exclude_regex=None, exclude_names=None, exclude_glob=None, summary=None,
-               on_conflict=None, max_workers=4, verbose=False, has_extension=False):
+               on_conflict=None, max_workers=4, verbose=False, recursive_check=False, has_extension=False):
     fileprocess(src, dest, no_create, interactive, dry_run, match_regex, match_names, match_glob,
-                exclude_regex, exclude_names, exclude_glob, summary, on_conflict, max_workers, verbose, has_extension, move=True)
+                exclude_regex, exclude_names, exclude_glob, summary, on_conflict, max_workers, verbose, recursive_check, has_extension, move=True)
