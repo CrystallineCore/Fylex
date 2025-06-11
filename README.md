@@ -1,6 +1,16 @@
-## <div style="text-align:right">[![PyPI Downloads](https://static.pepy.tech/badge/fylex)](https://pepy.tech/projects/fylex)</div>
+<h1 align="left">
+  Fylex
+  <a href="https://pepy.tech/projects/fylex">
+  <img src="https://static.pepy.tech/badge/fylex" alt="PyPI Downloads" style="margin-right:8px;" />
+</a>
+<a href="https://pypi.org/project/fylex/">
+  <img src="https://badge.fury.io/py/fylex.svg" alt="PyPI version" style="margin-right:8px;" />
+</a>
+<a href="https://opensource.org/licenses/MIT">
+  <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT" />
+</a>
 
-# fylex 
+</h1>
 
 
 **Smart, Safe & Customizable File Operations Toolkit**
@@ -29,19 +39,19 @@ Most tools either **blindly copy everything** or **require complex scripting** t
 
 | Criteria                           | `fylex`                                   | `rsync`                       | `shutil` / `distutils`  | `robocopy` (Windows)       | Other Python libs (e.g. `send2trash`, `dirsync`) |
 | ---------------------------------- | ------------------------------------------------------ | ----------------------------- | ----------------------- | -------------------------- | ------------------------------------------------ |
-| **Hash-based change detection**    | ✅ Uses `xxhash` to skip identical files efficiently    |  Optional via checksum      | ❌ Metadata only         | ❌ File size/time only      |  Varies per lib                                |
-| **Multi-threaded copy**            | ✅ `ThreadPoolExecutor`-based parallelism               | ❌ Mostly single-threaded      | ❌ Single-threaded       | ✅ Parallelization possible | ❌ Usually sequential                             |
-| **Regex + Glob + Name filtering**  | ✅ Supports all three (rare combo)                      |  Basic include/exclude      | ❌ Minimal support       |  Mask-based filtering    |  Usually only glob                             |
-| **Conflict resolution strategies** | ✅ `skip`, `replace`, `rename`, `larger`, `newer`, etc. |  `--update`, overwrite-only | ❌ Must handle manually  |  Some file age support   | ❌ Very limited logic                             |
-| **Smart move**                     | ✅ Adds verified delete after copy                      | ❌ Requires manual delete      | ❌ No move-and-check     | ❌ Overwrites or fails      | ❌ Not built-in                                   |
-| **Interactive prompts**            | ✅ Asks on conflict (optional)                          | ❌ No CLI interactivity        | ❌ No interactivity      | ❌ Batch/script-oriented    | ❌ Rare                                           |
-| **Dry-run mode**                   | ✅ Simulates full operation                             | ✅ `--dry-run`                 | ❌ Not available         | ✅ `/L` option              |  Sometimes                                     |
+| **Hash-based change detection**    | ✅ Uses `xxhash` to skip identical files efficiently    |  Optional via checksum      |  Metadata only         |  File size/time only      |  Varies per lib                                |
+| **Multi-threaded copy**            | ✅ `ThreadPoolExecutor`-based parallelism               |  Mostly single-threaded      |  Single-threaded       | ✅ Parallelization possible |  Usually sequential                             |
+| **Regex + Glob + Name filtering**  | ✅ Supports all three (rare combo)                      |  Basic include/exclude      |  Minimal support       |  Mask-based filtering    |  Usually only glob                             |
+| **Conflict resolution strategies** | ✅ `skip`, `replace`, `rename`, `larger`, `newer`, etc. |  `--update`, overwrite-only |  Must handle manually  |  Some file age support   |  Very limited logic                             |
+| **Smart move**                     | ✅ Adds verified delete after copy                      |  Requires manual delete      |  No move-and-check     |  Overwrites or fails      |  Not built-in                                   |
+| **Interactive prompts**            | ✅ Asks on conflict (optional)                          |  No CLI interactivity        |  No interactivity      |  Batch/script-oriented    |  Rare                                           |
+| **Dry-run mode**                   | ✅ Simulates full operation                             | ✅ `--dry-run`                 |  Not available         | ✅ `/L` option              |  Sometimes                                     |
 | **Preserves metadata**             | ✅ Via `shutil.copy2()`                                 | ✅ Preserves most metadata     |  Partial (copy2 only) | ✅ Full metadata support    |  Limited                                       |
-| **Logging and Summary**            | ✅ Optional logs and summary file                       |  Logs via stdout            | ❌ No logs               | ✅ Built-in logs            | ❌ Rare                                           |
-| **CLI + API support**              | ✅ Both available                                       | ❌ CLI-only                    |  Python-only          | ✅ CLI only                 |  API only                                      |
-| **Cross-platform**                 | ✅ Full (Linux, macOS, Windows)                         | ✅ Mostly                      | ✅ Yes                   | ❌ Windows-only             |  Varies                                        |
-| **Extensibility / Modularity**     | ✅ Modular design, easy to plug in new behaviors        | ❌ Hard to extend              | ✅ For basic scripting   | ❌ Not scriptable           |  Sometimes messy                               |
-| **Active UI feedback (UX)**        | ✅ Supports verbose/dry-run interactions                | ❌ Silent unless verbose       | ❌ No feedback           |  Some progress reports   | ❌ Often silent                                   |
+| **Logging and Summary**            | ✅ Optional logs and summary file                       |  Logs via stdout            |  No logs               | ✅ Built-in logs            |  Rare                                           |
+| **CLI + API support**              | ✅ Both available                                       |  CLI-only                    |  Python-only          | ✅ CLI only                 |  API only                                      |
+| **Cross-platform**                 | ✅ Full (Linux, macOS, Windows)                         | ✅ Mostly                      | ✅ Yes                   |  Windows-only             |  Varies                                        |
+| **Extensibility / Modularity**     | ✅ Modular design, easy to plug in new behaviors        |  Hard to extend              | ✅ For basic scripting   |  Not scriptable           |  Sometimes messy                               |
+| **Active UI feedback (UX)**        | ✅ Supports verbose/dry-run interactions                |  Silent unless verbose       |  No feedback           |  Some progress reports   |  Often silent                                   |
 
 ##
 
@@ -86,7 +96,7 @@ fylex.move_files(src, dest, **options)
 | `max_workers`   | `int`       | Number of threads (default 4)                                                                        |
 | `verbose`       | `bool`      | Show logs in console                                                                                 |
 | `has_extension` | `bool`      | Track extensions in duplicate detection                                                              |
-
+| `recursive_check` | `bool` | Scans the destination directory recursively to detect if any of the source files already exist anywhere inside the destination tree, even in nested subdirectories. |
 ##
 
 ##  Example: `copy_files()` 
@@ -221,6 +231,24 @@ copy_files(
 
 ##
 
+##  Recursive checks
+
+```python
+copy_files(
+    src="/media/dump",
+    dest="/archive/yearly/",
+    recursive_check=True,
+    match_regex=r".*\.(jpg|png)$",
+    on_conflict="rename",
+    dry_run=True
+)
+
+```
+
+* Skips operating on a file if it is located inside any subdirectory of the destination.
+* Raises an error if the source path is nested within the destination, preventing potential recursion.
+
+##
 ##  Junk Filtering (Advanced Use)
 
 Use `JUNK_EXTENSIONS` with `exclude_names` or `exclude_glob`:
