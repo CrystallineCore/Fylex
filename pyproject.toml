@@ -1,7 +1,7 @@
 [project]
 name = "fylex"
-version = "0.3.4"
-description = "A smart file copying and moving utility with hashing, filtering, and conflict resolution."
+version = "0.4.1"
+description = "A smart file copying and moving utility with hashing, filtering, conflict resolution, and auto-backups."
 readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "MIT"}
