@@ -1,6 +1,6 @@
 import argparse
 import sys
-from .fylex import copy_files, move_files, spill, flatten, ON_CONFLICT_MODES
+from .fylex import copy_files, move_files, spill, flatten, categorize, categorize_by_name, categorize_by_size, categorize_by_ext, ON_CONFLICT_MODES
 from .exceptions import FylexError
 
 def parse_args():
@@ -84,13 +84,25 @@ def parse_args():
     # ---------------- Flatten Subcommand ----------------
     flatten_parser = subparsers.add_parser("flatten", help="Spills selective contents from a directory")
 
-    flatten_parser.add_argument("target", help="Target directory to refine")
+    flatten_parser.add_argument("target", help="Target directory to flatten")
     flatten_parser.add_argument("--on-conflict", choices=["larger", "smaller", "newer", "older", "rename", "skip", "prompt", "replace"], 
                              help="Action on filename conflict")
     flatten_parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
     flatten_parser.add_argument("--summary", default=None, help="Summary log path")
     flatten_parser.add_argument("--dry-run", action="store_true", help="Dry run simulation")
     flatten_parser.add_argument("--max-workers", type=int, default=4, help="Number of threads to use")
+    
+    # ---------------- Categorize Subcommand ----------------
+    categorize_parser = subparsers.add_parser("categorize", help="Categorizes contents from a directory")
+
+    categorize_parser.add_argument("target", help="Target directory to categorize")
+    categorize_parser.add_argument("categorize-by", choices=["name","size","ext"], help="Criteria for categorization")
+    categorize_parser.add_argument("grouping", type=dict, help="Categorization rules")
+    categorize_parser.add_argument("--default", help="Default directory to move other files")
+    categorize_parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
+    categorize_parser.add_argument("--summary", default=None, help="Summary log path")
+    categorize_parser.add_argument("--dry-run", action="store_true", help="Dry run simulation")
+    categorize_parser.add_argument("--max-workers", type=int, default=4, help="Number of threads to use")
 
     return parser.parse_args()
 

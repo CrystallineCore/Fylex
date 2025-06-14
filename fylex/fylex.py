@@ -81,6 +81,19 @@ class PrintToLogger:
         # This method is required for file-like objects.
         pass
 
+def safe_logging(verbose=True):
+    for handler in logging.root.handlers[:]:
+        logging.root.removeHandler(handler)
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s | %(levelname)s | %(message)s",
+        handlers=[
+            logging.FileHandler("fylex.log", mode="w", encoding="utf-8"),
+            logging.StreamHandler(sys.__stdout__) if verbose else logging.NullHandler()
+        ]
+    )
+    sys.stdout = PrintToLogger(verbose)
+
 # -------- Hashing --------
 def hash_file(path):
     """
@@ -188,6 +201,21 @@ def validator(src, dest, no_create, recursive_check):
     if recursive_check and is_subpath(src, dest):
         raise ValueError("Cannot enable recursive_check when src is inside dest — this can cause unintended behavior.")
 
+# -------- Backup files --------
+def backup(backup_dir, dest_file, dry_run):
+    try:
+        backup_dir = backup_dir / "fylex.deprecated"
+        backup_dir.mkdir(parents=True, exist_ok=True)
+
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        backup_file = backup_dir / f"{dest_file.stem}.{timestamp}{dest_file.suffix}"
+
+        if not dry_run:
+            shutil.move(dest_file, backup_file)
+    except Exception as e:
+        with _io_lock:
+            logging.error(f"Could not back up {dest_file}: {e}")
+
 # -------- Metadata Gathering --------
 def file_filter(directory, match_regex=None, match_names=None, exclude_regex=None, exclude_names=None, recursive_check=False, has_extension=False, is_nest=False, nest_filter=None):
     """
@@ -242,41 +270,45 @@ def file_filter(directory, match_regex=None, match_names=None, exclude_regex=Non
                 
     return (file_data, _filter) if not is_nest else file_data
 
-def folder_filter(target, match_regex, match_names, exclude_regex, exclude_names, levels):
+def folder_filter(target, match_regex=r".+", match_names=[], exclude_regex=None, exclude_names=[], levels=1):
     """
     Recursively finds all files within subdirectories up to a specified depth (`levels`).
     This is used by the `spill` function.
     """
+    
     match_re = re.compile(match_regex) if match_regex else None
     exclude_re = re.compile(exclude_regex) if exclude_regex else None
-    dir_path = pathlib.Path(target)
-    
+    dir_path = pathlib.Path(target).resolve()
+
     def recursive(_path, current_level, processed):
         try:
-            entries = _path.iterdir()
+            entries = list(_path.iterdir())
         except PermissionError:
-            pass # Ignore directories we can't read.
-        else:
-            for entry in entries:
-                name = entry.name
-                if entry.is_dir():
-                    # Recurse if we are within the specified level depth.
-                    if levels == -1 or current_level < levels:
-                        recursive(entry, current_level + 1, processed)
-                # Apply filters
-                if exclude_re and exclude_re.fullmatch(name):
-                    continue
-                if exclude_names and name in exclude_names:
-                    continue
-                if not ((match_re and match_re.fullmatch(name)) or (match_names and name in match_names)):
-                    continue
-                # We only want files from subdirectories, not the root.
-                if entry.is_file() and current_level > 0:
-                    processed.append(entry)
+            logging.warning(f"Permission denied: {_path}")
+            return
+        for entry in entries:
+            name = entry.name
 
-    result = []
-    recursive(target, 0, result)
-    return result
+            if entry.is_dir():
+                if name == "fylex.deprecated":
+                    continue
+                if levels == -1 or current_level < levels:
+                    recursive(entry, current_level + 1, processed)
+                continue  # skip dir from matching below
+
+            # Now we know it's a file:
+            if exclude_re and exclude_re.fullmatch(name):
+                continue
+            if exclude_names and name in exclude_names:
+                continue
+            if not ((match_re and match_re.fullmatch(name)) or (match_names and name in match_names)):
+                continue
+            # Include based on depth (only if deeper than root)
+            if current_level > 0 or levels == 0:
+                processed.append(entry)
+        return processed
+    return recursive(dir_path, 0, [])
+
 
 # -------- Regex compilation --------
 def sanitize_glob_regex(glob_pattern):
@@ -294,7 +326,7 @@ def extract_global_flags(regex):
         return match.group(1), regex[match.end():]
     return "", regex
 
-def combine_regex_with_glob(user_regex, glob_pattern):
+def combine_regex_and_glob(user_regex, glob_pattern):
     """Combines a user-provided regex and a glob pattern into a single regex."""
     glob_part = sanitize_glob_regex(glob_pattern) if glob_pattern else ""
     user_flags, user_core = extract_global_flags(user_regex or "")
@@ -316,8 +348,9 @@ def combine_regex_with_glob(user_regex, glob_pattern):
 
 # -------- File Copying/Moving Task --------
 def copy_or_move_task(file_key, src_path, dest_path, src_name, file_nest, on_conflict, interactive, verbose, dry_run, summary, move):
-    src_file = src_path / src_name
-    dest_file = dest_path / src_name
+    src_file = src_name
+    dest_file = dest_path / src_name.name
+    src_name = src_name.name
     retries, proceed = 0, True
 
     if interactive:
@@ -350,13 +383,13 @@ def copy_or_move_task(file_key, src_path, dest_path, src_name, file_nest, on_con
                         with _io_lock:
                             logging.info(f"Duplicate renamed: {existing_name} to {src_name}")
                             if move:
-                                os.remove(src_file)
+                                backup(src_path, src_file, dry_run)
                         return True
                     else:
                         with _io_lock:
                             logging.info(f"File already present: {file_nest[file_key]['path']}")
                             if move:
-                                os.remove(src_file)
+                                backup(src_path, src_file, dry_run)
                         return True
 
             if dest_file.exists():
@@ -367,19 +400,8 @@ def copy_or_move_task(file_key, src_path, dest_path, src_name, file_nest, on_con
                 immigrant_time = src_file.stat().st_mtime
 
                 def replace():
-                    try:
-                        backup_dir = dest_path / "fylex.deprecated"
-                        backup_dir.mkdir(parents=True, exist_ok=True)
-
-                        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-                        backup_file = backup_dir / f"{dest_file.stem}.{timestamp}{dest_file.suffix}"
-
-                        if not dry_run:
-                            shutil.move(dest_file, backup_file)
-                    except Exception as e:
-                        with _io_lock:
-                            logging.error(f"Could not back up {dest_file} to {backup_file}: {e}")
-
+                    #backup_dir = dest_path / "fylex.deprecated"
+                    backup(dest_path, dest_file, dry_run)
                     with _io_lock:
                         if dry_run:
                             logging.info(f"[DRY RUN] Would have replaced: {dest_file} with {src_file}")
@@ -389,19 +411,9 @@ def copy_or_move_task(file_key, src_path, dest_path, src_name, file_nest, on_con
 
 
                 def no_change():
-                    try:
-                        backup_dir = src_path / "fylex.deprecated"
-                        backup_dir.mkdir(parents=True, exist_ok=True)
-
-                        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-                        backup_file = backup_dir / f"{src_file.stem}.{timestamp}{src_file.suffix}"
-
-                        if not dry_run:
-                            shutil.move(src_file, backup_file)
-                    except Exception as e:
-                        with _io_lock:
-                            logging.error(f"Could not back up {src_file} to {backup_file}: {e}")
-
+                    if move:
+                        #backup_dir = src_path / "fylex.deprecated"
+                        backup(dest_path, dest_file, dry_run)
                     with _io_lock:
                         if dry_run:
                             logging.info(f"[DRY RUN] No changes to: {dest_file}")
@@ -549,26 +561,14 @@ def fileprocess(src, dest, no_create=False, interactive=False, dry_run=False, ma
     the copy/move tasks to a thread pool.
     """
     # --- Setup ---
-    match_regex = combine_regex_with_glob(match_regex, match_glob)
-    exclude_regex = combine_regex_with_glob(exclude_regex, exclude_glob)
+    match_regex = combine_regex_and_glob(match_regex, match_glob)
+    exclude_regex = combine_regex_and_glob(exclude_regex, exclude_glob)
 
     if not (match_regex or match_names):
         match_regex = r".+" # Match all files if no specific match pattern is given
 
     # Reset and configure logging for this run.
-    for handler in logging.root.handlers[:]:
-        logging.root.removeHandler(handler)
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s | %(levelname)s | %(message)s",
-        handlers=[
-            logging.FileHandler("fylex.log", mode="w", encoding="utf-8"),
-            logging.StreamHandler(sys.__stdout__) if verbose else logging.NullHandler()
-        ]
-    )
-    
-    # Redirect stdout to the logger to capture all output.
-    sys.stdout = PrintToLogger(verbose)
+    safe_logging(verbose)
 
     src_path = pathlib.Path(src)
     dest_path = pathlib.Path(dest)
@@ -592,7 +592,7 @@ def fileprocess(src, dest, no_create=False, interactive=False, dry_run=False, ma
     # Create a list of tasks for the thread pool.
     tasks = []
     for file_key, info in file_birds.items():
-        tasks.append((file_key, src_path, dest_path, info["name"], file_nest, on_conflict, interactive, verbose, dry_run, summary, move))
+        tasks.append((file_key, src_path, dest_path, info["path"], file_nest, on_conflict, interactive, verbose, dry_run, summary, move))
 
     # Execute tasks concurrently.
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -632,19 +632,14 @@ def spill(target, interactive=False, dry_run=False, match_regex=None, match_name
     if not target.is_dir():
         raise ValueError(f"Invalid path or not a directory: {target}")
 
-    match_regex = combine_regex_with_glob(match_regex, match_glob)
-    exclude_regex = combine_regex_with_glob(exclude_regex, exclude_glob)
+    match_regex = combine_regex_and_glob(match_regex, match_glob)
+    exclude_regex = combine_regex_and_glob(exclude_regex, exclude_glob)
 
     if not (match_regex or match_names):
         match_regex = r".+"
 
     # Setup logging
-    for handler in logging.root.handlers[:]:
-        logging.root.removeHandler(handler)
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s",
-                        handlers=[logging.FileHandler("fylex.log", mode="w", encoding="utf-8"),
-                                  logging.StreamHandler(sys.__stdout__) if verbose else logging.NullHandler()])
-    sys.stdout = PrintToLogger(verbose)
+    safe_logging(verbose)
     
     # Find all files in subfolders that match the criteria.
     files_to_move = folder_filter(target, match_regex, match_names, exclude_regex, exclude_names, levels)
@@ -664,7 +659,7 @@ def flatten(target, interactive=False, dry_run=False, summary=None, on_conflict=
     into the root `target` directory and then deleting the now-empty subdirectories.
     """
     # First, spill all files from all levels.
-    spill(target, interactive, dry_run, None, None, None, None, None, None, summary, on_conflict, max_workers, -1, verbose)
+    spill(target, interactive, dry_run, ".+", None, None, None, None, None, summary, on_conflict, max_workers, -1, verbose)
     
     # Then, clean up the empty directories left behind.
     if not dry_run:
@@ -673,3 +668,94 @@ def flatten(target, interactive=False, dry_run=False, summary=None, on_conflict=
     else:
         logging.info(f"[DRY RUN] Would have removed empty directories from {target}.")
 
+# -------- Main categorize --------
+def categorize_by_name(target, grouping, default=None, interactive=False, dry_run=False, summary=None, max_workers=4, verbose=False, recursive_check=False):
+    for key in grouping:
+        # Handle case: key is a plain string (assumed to be a regex)
+        if isinstance(key, str):
+            move_files(target, grouping[key], interactive=interactive, dry_run=dry_run,
+                match_regex=key, summary=summary, on_conflict="rename", max_workers=max_workers,
+                verbose=verbose, recursive_check=recursive_check, has_extension=False, no_create=False
+            )
+        # Handle case: key is a tuple like ("*.txt", "glob") or ("abc.*", "regex")
+        elif isinstance(key, tuple):
+            if len(key) != 2:
+                raise ValueError(f"Categorization key tuples must have exactly 2 elements: {key}")
+            pattern, mode = key
+            mode = mode.lower()
+            if mode not in ["regex", "glob"]:
+                raise ValueError(f"Invalid mode in key {key}. Expected 'regex' or 'glob'.")
+
+            move_files( target, grouping[key], interactive=interactive, dry_run=dry_run, match_regex=pattern if mode == "regex" else None,
+                match_glob=pattern if mode == "glob" else None, summary=summary, on_conflict="rename", max_workers=max_workers,
+                verbose=verbose, recursive_check=recursive_check, has_extension=False, no_create=False
+            )
+        else:
+            raise TypeError(f"Invalid key type: {key} (must be str or tuple)")
+
+    if default:
+        move_files(target, default)
+
+def categorize_by_size(target, grouping, default=None, interactive=False, dry_run=False, summary=None, max_workers=4, verbose=False, recursive_check=False):
+    safe_logging(verbose)
+    all_files = pathlib.Path(target).rglob("*") if recursive_check else pathlib.Path(target).glob("*")
+    logging.info(all_files)
+    path_log = {}
+    for file in all_files:
+        size = file.stat().st_size
+        dest_dir = default
+        try:
+            dest_dir = grouping[size]
+        except:
+            for key, path in grouping.items():
+                if isinstance(key, tuple):
+                    a, b = key
+                    if isinstance(b, str) and b.lower() == "max":
+                        if a <= size:
+                            dest_dir = path
+                            break
+                    else:
+                        if a <= size < b:
+                            dest_dir = path
+                            break
+        if path_log[dest_dir]:
+            path_log[dest_dir].append(str(file))
+        else:
+            path_log[dest_dir] = [str(file)]
+    
+    move_files(str(file), dest_dir, False, interactive, dry_run, None, [file.name], None, 
+                       None, None, None, summary, "rename", max_workers, verbose, False, False)
+    if default:
+        move_files(target, default)
+    
+def categorize_by_ext(target, default=None, interactive=False, dry_run=False, summary=None, max_workers=4, verbose=False):
+    safe_logging()
+    target_path = pathlib.Path(target).resolve()
+    all_files = target_path.glob("*")
+    for file in all_files:
+        if not file.is_file():
+            continue
+        logging.info(f"Processing file: {file}")
+        ext = file.suffix.lower().split(".")
+        if len(ext) == 1:
+            # This can optionally place files with no extension in a "_no_ext" folder
+            dest_dir = target_path / "_no_ext" if default is None else pathlib.Path(default)
+        else:
+            dest_dir = target_path / "".join(ext)   # folder like ".txt", ".jpg"
+
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        move_files(str(file),str(dest_dir),False,interactive,dry_run,None,None,None,None,None,None,summary,"rename",max_workers,verbose,False,False)
+
+    if default:
+        move_files(target, default) #efficient
+        
+
+def categorize(target, categorize_by, grouping, default = None, interactive=False, dry_run=False, summary=None, max_workers=4, verbose=False):
+    if categorize_by == "name":
+        categorize_by_name(target, grouping, default, interactive, dry_run, summary, max_workers, verbose)
+    elif categorize_by == "size":
+        categorize_by_size(target, grouping, default, interactive, dry_run, summary, max_workers, verbose)
+    elif categorize_by == "ext":
+        categorize_by_ext(target, default, interactive, dry_run, summary, max_workers, verbose)
+    else:
+        raise ValueError(f"Unrecognized categorize_by mode provided: {categorize_by}. Choose from: [\"name\",\"size\",\"ext\"]")
