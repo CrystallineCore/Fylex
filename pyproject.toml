@@ -1,17 +1,31 @@
 [project]
 name = "fylex"
-version = "0.4.1"
-description = "A smart file copying and moving utility with hashing, filtering, conflict resolution, and auto-backups."
+version = "0.5.0"
+description = "A fast, intelligent file copier/mover with hashing, filters, conflict resolution, and backup support — built for power users."
 readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "MIT"}
 authors = [
   {name = "Sivaprasad Murali", email = "sivaprasad.off@gmail.com"}
 ]
+keywords = [
+  "file", "copy", "move", "cli", "utility", "xxhash", "filter", "conflict", "backup", "multithread", "devtool", "python-tool"
+]
 classifiers = [
-  "Programming Language :: Python :: 3",
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Intended Audience :: System Administrators",
   "License :: OSI Approved :: MIT License",
-  "Operating System :: OS Independent"
+  "Operating System :: OS Independent",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Topic :: System :: Filesystems",
+  "Topic :: Utilities"
 ]
 dependencies = [
   "xxhash>=3.0.0"
@@ -19,6 +33,9 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://github.com/Crystallinecore/fylex"
+Documentation = "https://github.com/Crystallinecore/fylex#readme"
+Source = "https://github.com/Crystallinecore/fylex"
+Tracker = "https://github.com/Crystallinecore/fylex/issues"
 
 [tool.setuptools]
 packages = ["fylex"]
