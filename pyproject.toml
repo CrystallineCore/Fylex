@@ -1,0 +1,57 @@
+[project]
+name = "fylex"
+version = "1.2.4"
+description = "Fylex: A production-ready, high-performance file utility tailored for Linux — with smart copy/move, hashing, filters, undo/redo, and conflict resolution."
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+  {name = "Sivaprasad Murali", email = "sivaprasad.off@gmail.com"}
+]
+keywords = [
+  "file", "copy", "move", "cli", "linux", "utility", "xxhash", "blake3", "filter", "conflict",
+  "backup", "undo", "redo", "hashing", "checksum", "deduplication", "data-integrity", "sysadmin",
+  "file-management", "sync", "devtool", "cli-tool", "python-tool", "smart-copy", "smart-move", "fylex"
+]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Intended Audience :: System Administrators",
+  "Intended Audience :: End Users/Desktop",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: System :: Filesystems",
+  "Topic :: Utilities",
+  "Topic :: Software Development :: Libraries :: Python Modules"
+]
+dependencies = [
+  "xxhash>=3.0.0",
+  "blake3>=0.4.0"
+]
+
+[project.urls]
+Homepage = "https://github.com/Crystallinecore/fylex"
+Documentation = "https://github.com/Crystallinecore/fylex#readme"
+Source = "https://github.com/Crystallinecore/fylex"
+Tracker = "https://github.com/Crystallinecore/fylex/issues"
+Releases = "https://github.com/Crystallinecore/fylex/releases"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["fylex*"]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project.scripts]
+fylex = "fylex.__main__:main"
+
